@@ -1,0 +1,6 @@
+streamlit
+playwright
+Pillow
+pixelmatch
+openai
+pandas
