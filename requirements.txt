@@ -4,3 +4,6 @@ Pillow
 pixelmatch
 openai
 pandas
+requests
+plotly
+openpyxl
