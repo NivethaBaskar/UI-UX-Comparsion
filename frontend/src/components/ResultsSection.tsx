@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { CompareResult, JiraConfig, BreakpointResult } from '../types'
 import { BP_SUFFIX } from '../types'
 import { IssueTable } from './IssueTable'
@@ -118,6 +118,7 @@ function BreakpointView({ bpLabel, result, jiraConfig, url }: BpViewProps) {
   const [creatingTickets, setCreatingTickets] = useState(false)
   const [ticketResults, setTicketResults] = useState<any[] | null>(null)
   const [severityThreshold, setSeverityThreshold] = useState('medium')
+  const [viewMode, setViewMode] = useState<'slider' | 'sidebyside'>('sidebyside')
 
   const downloadJson = () => {
     const blob = new Blob([JSON.stringify(result.issues, null, 2)], { type: 'application/json' })
@@ -176,30 +177,80 @@ function BreakpointView({ bpLabel, result, jiraConfig, url }: BpViewProps) {
         </div>
       </div>
 
-      {/* Image comparison */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ImageCard
-          label="Figma Design"
-          src={result.figma_image}
-          accent="border-indigo-200"
-          headerColor="bg-indigo-50"
-          onClick={() => setLightbox(result.figma_image)}
-        />
-        <ImageCard
-          label="Live UI — Annotated"
-          src={result.annotated_image || result.ui_image}
-          accent="border-red-200"
-          headerColor="bg-red-50"
-          badge="Issues highlighted"
-          onClick={() => setLightbox(result.annotated_image || result.ui_image)}
-        />
-        <ImageCard
-          label={`Pixel Diff (${result.mismatch_pct.toFixed(2)}% mismatch)`}
-          src={result.diff_image}
-          accent="border-amber-200"
-          headerColor="bg-amber-50"
-          onClick={() => setLightbox(result.diff_image)}
-        />
+      {/* Image comparison — view mode toggle */}
+      <div className="flex flex-col gap-3">
+        {/* Toggle tabs */}
+        <div className="flex items-center gap-1 self-start bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('slider')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              viewMode === 'slider'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            ⇔ Slider
+          </button>
+          <button
+            onClick={() => setViewMode('sidebyside')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              viewMode === 'sidebyside'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            ▦ Side by Side
+          </button>
+        </div>
+
+        {/* Slider view */}
+        {viewMode === 'slider' && (
+          <div className="flex flex-col gap-4">
+            <ComparisonSlider
+              img1={result.figma_image}
+              img2={result.annotated_image || result.ui_image}
+              label1="Figma Design"
+              label2="Live UI — Annotated"
+              onClickImg1={() => setLightbox(result.figma_image)}
+              onClickImg2={() => setLightbox(result.annotated_image || result.ui_image)}
+            />
+            <ImageCard
+              label={`Pixel Diff (${result.mismatch_pct.toFixed(2)}% mismatch)`}
+              src={result.diff_image}
+              accent="border-amber-200"
+              headerColor="bg-amber-50"
+              onClick={() => setLightbox(result.diff_image)}
+            />
+          </div>
+        )}
+
+        {/* Side-by-side view */}
+        {viewMode === 'sidebyside' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <ImageCard
+              label="Figma Design"
+              src={result.figma_image}
+              accent="border-indigo-200"
+              headerColor="bg-indigo-50"
+              onClick={() => setLightbox(result.figma_image)}
+            />
+            <ImageCard
+              label="Live UI — Annotated"
+              src={result.annotated_image || result.ui_image}
+              accent="border-red-200"
+              headerColor="bg-red-50"
+              badge="Issues highlighted"
+              onClick={() => setLightbox(result.annotated_image || result.ui_image)}
+            />
+            <ImageCard
+              label={`Pixel Diff (${result.mismatch_pct.toFixed(2)}% mismatch)`}
+              src={result.diff_image}
+              accent="border-amber-200"
+              headerColor="bg-amber-50"
+              onClick={() => setLightbox(result.diff_image)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Issues table */}
@@ -309,6 +360,89 @@ function BreakpointView({ bpLabel, result, jiraConfig, url }: BpViewProps) {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+function ComparisonSlider({
+  img1, img2, label1, label2, onClickImg1, onClickImg2,
+}: {
+  img1: string
+  img2: string
+  label1: string
+  label2: string
+  onClickImg1: () => void
+  onClickImg2: () => void
+}) {
+  const [pos, setPos] = useState(50)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+
+  const move = (clientX: number) => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    setPos(Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden rounded-xl border border-slate-200 shadow-sm cursor-ew-resize select-none"
+        onMouseDown={e => { dragging.current = true; move(e.clientX); e.preventDefault() }}
+        onMouseMove={e => { if (dragging.current) move(e.clientX) }}
+        onMouseUp={() => { dragging.current = false }}
+        onMouseLeave={() => { dragging.current = false }}
+        onTouchStart={e => { dragging.current = true; move(e.touches[0].clientX) }}
+        onTouchMove={e => { if (dragging.current) move(e.touches[0].clientX) }}
+        onTouchEnd={() => { dragging.current = false }}
+      >
+        {/* Back: annotated live UI — always fully visible */}
+        <img
+          src={img2}
+          alt={label2}
+          className="block w-full h-auto"
+          draggable={false}
+          onClick={onClickImg2}
+        />
+
+        {/* Front: Figma design — clipped to left `pos`% */}
+        <div
+          className="absolute inset-0 overflow-hidden pointer-events-none"
+          style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
+        >
+          <img
+            src={img1}
+            alt={label1}
+            className="block w-full h-auto"
+            draggable={false}
+          />
+        </div>
+
+        {/* Divider line */}
+        <div
+          className="absolute top-0 bottom-0 w-[3px] bg-white/90 shadow-[0_0_8px_rgba(0,0,0,0.5)] pointer-events-none"
+          style={{ left: `${pos}%`, transform: 'translateX(-50%)' }}
+        >
+          {/* Handle */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-500 text-xl font-bold">
+            ⇔
+          </div>
+        </div>
+
+        {/* Labels */}
+        <span className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md pointer-events-none">
+          {label1}
+        </span>
+        <span className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-md pointer-events-none">
+          {label2}
+        </span>
+      </div>
+
+      {/* Click hints */}
+      <p className="text-center text-xs text-slate-400">
+        Drag to compare · click either half to enlarge
+      </p>
     </div>
   )
 }

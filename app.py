@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -5,6 +6,8 @@ import os
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
+from PIL import Image
 
 from services.diff import generate_diff
 from services.jira_service import JiraClient
@@ -18,6 +21,66 @@ try:
     AUTOGEN_AVAILABLE = True
 except ImportError:
     AUTOGEN_AVAILABLE = False
+
+def _comparison_slider(img1_path: str, img2_path: str, label1: str, label2: str) -> None:
+    """Render a drag-to-compare slider between two images using pure HTML/JS (no CDN)."""
+    def _b64(path: str) -> str:
+        img = Image.open(path).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=88)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    src1, src2 = _b64(img1_path), _b64(img2_path)
+
+    with Image.open(img1_path) as im:
+        w, h = im.size
+    height = int(h / w * 700) + 30  # match ~700px display width Streamlit uses
+
+    html = """<!doctype html><html><head><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e1117}
+#sc{position:relative;width:100%;overflow:hidden;cursor:ew-resize;user-select:none;-webkit-user-select:none}
+#ib{display:block;width:100%;height:auto}
+#fw{position:absolute;inset:0;overflow:hidden;clip-path:inset(0 50%% 0 0);pointer-events:none}
+#ff{display:block;width:100%%;height:auto}
+#dv{position:absolute;top:0;left:50%%;width:3px;height:100%%;background:rgba(255,255,255,.9);transform:translateX(-50%%);box-shadow:0 0 8px rgba(0,0,0,.6);pointer-events:none}
+#hd{position:absolute;top:50%%;left:50%%;transform:translate(-50%%,-50%%);width:44px;height:44px;border-radius:50%%;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:22px;color:#333}
+.lb{position:absolute;top:10px;background:rgba(0,0,0,.65);color:#fff;padding:4px 10px;border-radius:4px;font:13px/1.5 sans-serif;pointer-events:none;white-space:nowrap}
+</style></head><body>
+<div id="sc">
+  <img id="ib" src="BACK_SRC">
+  <div id="fw"><img id="ff" src="FRONT_SRC"></div>
+  <div id="dv"><div id="hd">&#x21FA;</div></div>
+  <span class="lb" style="left:10px">LABEL1</span>
+  <span class="lb" style="right:10px">LABEL2</span>
+</div>
+<script>
+(function(){
+  var sc=document.getElementById('sc'),fw=document.getElementById('fw'),dv=document.getElementById('dv');
+  var drag=false;
+  function move(x){
+    var r=sc.getBoundingClientRect();
+    var p=Math.max(0,Math.min(100,(x-r.left)/r.width*100));
+    fw.style.clipPath='inset(0 '+(100-p)+'%% 0 0)';
+    dv.style.left=p+'%%';
+  }
+  sc.addEventListener('mousedown',function(e){drag=true;move(e.clientX);e.preventDefault();});
+  window.addEventListener('mousemove',function(e){if(drag)move(e.clientX);});
+  window.addEventListener('mouseup',function(){drag=false;});
+  sc.addEventListener('touchstart',function(e){drag=true;move(e.touches[0].clientX);},{passive:true});
+  window.addEventListener('touchmove',function(e){if(drag)move(e.touches[0].clientX);},{passive:true});
+  window.addEventListener('touchend',function(){drag=false;});
+})();
+</script></body></html>"""
+
+    html = (html
+        .replace("BACK_SRC",  src2)
+        .replace("FRONT_SRC", src1)
+        .replace("LABEL1",    label1)
+        .replace("LABEL2",    label2))
+
+    components.html(html, height=height)
+
 
 st.set_page_config(page_title="AI UI-UX Comparator", layout="wide")
 
@@ -219,14 +282,10 @@ if st.session_state.comparison_done and st.session_state.breakpoint_results:
 
             st.metric("Pixel Mismatch", f"{result['mismatch_pct']:.2f}%")
 
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.image(figma_path,                      caption="Figma Design",                    use_container_width=True)
-            with c2:
-                annotated = result.get("annotated_path") or result["ui_path"]
-                st.image(annotated,                       caption=f"Live UI — annotated ({bp_label})", use_container_width=True)
-            with c3:
-                st.image(result["diff_path"],             caption="Visual Diff",                     use_container_width=True)
+            annotated = result.get("annotated_path") or result["ui_path"]
+            _comparison_slider(figma_path, annotated, "Figma Design", f"Live UI ({bp_label})")
+            with st.expander("Visual Diff", expanded=False):
+                st.image(result["diff_path"], use_container_width=True)
 
             enriched     = result["enriched"]
             error_issues = [i for i in enriched if i.get("type") == "error"]
