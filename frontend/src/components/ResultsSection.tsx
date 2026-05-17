@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import type { CompareResult, JiraConfig, BreakpointResult } from '../types'
+import type { CompareResult, JiraConfig, BreakpointResult, A11yIssue } from '../types'
 import { BP_SUFFIX } from '../types'
 import { IssueTable } from './IssueTable'
 import { LogsPanel } from './LogsPanel'
@@ -13,6 +13,7 @@ interface Props {
   onTabChange: (tab: string) => void
   jiraConfig: JiraConfig | null
   url: string
+  elapsedSeconds: number | null
 }
 
 export function ResultsSection({
@@ -23,6 +24,7 @@ export function ResultsSection({
   onTabChange,
   jiraConfig,
   url,
+  elapsedSeconds,
 }: Props) {
   const bpKeys = results ? Object.keys(results.breakpoints) : []
   const tabs = [...bpKeys, 'logs']
@@ -31,6 +33,11 @@ export function ResultsSection({
 
   return (
     <section className="card flex flex-col overflow-hidden">
+      {/* ROI banner */}
+      {results && elapsedSeconds !== null && (
+        <ROIBanner results={results} elapsedSeconds={elapsedSeconds} />
+      )}
+
       {/* Tabs bar */}
       <div className="flex items-center border-b border-slate-200 px-4 pt-3 gap-1 overflow-x-auto bg-white">
         {tabs.map(tab => (
@@ -90,6 +97,42 @@ export function ResultsSection({
         )}
       </div>
     </section>
+  )
+}
+
+const HOURLY_RATE = 60      // $/hr for a QA engineer
+const MINS_PER_ISSUE = 30  // avg manual QA time per issue
+
+function ROIBanner({ results, elapsedSeconds }: { results: CompareResult; elapsedSeconds: number }) {
+  const bpKeys = Object.keys(results.breakpoints)
+  const totalIssues = bpKeys.reduce(
+    (sum, bp) => sum + results.breakpoints[bp].issues.filter(i => i.type !== 'error').length,
+    0,
+  )
+  const manualMins = totalIssues * MINS_PER_ISSUE
+  const savings = Math.round((manualMins / 60) * HOURLY_RATE)
+
+  const fmt = (s: number) => s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 bg-emerald-50 border-b border-emerald-200 text-sm">
+      <span className="text-emerald-700 font-semibold">
+        This analysis found{' '}
+        <span className="text-emerald-900 font-bold">{totalIssues} issues</span>{' '}
+        across{' '}
+        <span className="text-emerald-900 font-bold">{bpKeys.length} breakpoint{bpKeys.length !== 1 ? 's' : ''}</span>.
+      </span>
+      <span className="flex items-center gap-4 text-emerald-600">
+        <span>Manual QA equivalent: <strong>~{manualMins} min</strong></span>
+        <span className="text-emerald-300">|</span>
+        <span>Tool took: <strong>{fmt(elapsedSeconds)}</strong></span>
+        <span className="text-emerald-300">|</span>
+        <span className="text-emerald-800 font-bold">
+          Estimated savings: ${savings}
+          <span className="font-normal text-emerald-600"> at ${HOURLY_RATE}/hr</span>
+        </span>
+      </span>
+    </div>
   )
 }
 
@@ -260,6 +303,11 @@ function BreakpointView({ bpLabel, result, jiraConfig, url }: BpViewProps) {
         filename={`ui-issues-${BP_SUFFIX[bpLabel] ?? 'unknown'}`}
       />
 
+      {/* Accessibility section */}
+      {result.a11y_issues?.length > 0 && (
+        <AccessibilityPanel issues={result.a11y_issues} />
+      )}
+
       {/* Jira section */}
       {jiraConfig && result.issues.length > 0 && (
         <div className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3 bg-slate-50">
@@ -358,6 +406,81 @@ function BreakpointView({ bpLabel, result, jiraConfig, url }: BpViewProps) {
           >
             ×
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AccessibilityPanel({ issues }: { issues: A11yIssue[] }) {
+  const [open, setOpen] = useState(true)
+  const high = issues.filter(i => i.severity === 'high').length
+  const med  = issues.filter(i => i.severity === 'medium').length
+
+  return (
+    <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50">
+      {/* Header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+          ♿ Accessibility — WCAG 2.1 AA Contrast Check
+          <span className="flex items-center gap-1.5 ml-2">
+            {high > 0 && (
+              <span className="bg-red-100 text-red-700 border border-red-200 text-xs font-medium px-2 py-0.5 rounded-full">
+                {high} high
+              </span>
+            )}
+            {med > 0 && (
+              <span className="bg-amber-100 text-amber-700 border border-amber-300 text-xs font-medium px-2 py-0.5 rounded-full">
+                {med} medium
+              </span>
+            )}
+          </span>
+        </span>
+        <span className="text-amber-500 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Body */}
+      {open && (
+        <div className="border-t border-amber-200 divide-y divide-amber-100">
+          {issues.map((issue, i) => (
+            <div key={i} className="flex items-start gap-3 px-4 py-3">
+              {/* Contrast badge */}
+              <div className={`shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-lg border text-center ${
+                issue.severity === 'high'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-amber-50 border-amber-200 text-amber-700'
+              }`}>
+                <span className="text-lg font-bold leading-none">{issue.contrast_ratio}</span>
+                <span className="text-[10px] mt-0.5 font-medium">:1 ratio</span>
+              </div>
+
+              {/* Details */}
+              <div className="flex flex-col gap-0.5">
+                <p className="text-xs font-semibold text-slate-700">{issue.component}</p>
+                <p className="text-xs text-slate-600">{issue.issue}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{issue.wcag_standard}</p>
+              </div>
+
+              {/* Severity pill */}
+              <span className={`ml-auto shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full self-start ${
+                issue.severity === 'high'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {issue.severity.toUpperCase()}
+              </span>
+            </div>
+          ))}
+
+          {/* WCAG note */}
+          <div className="px-4 py-2.5 bg-white/60">
+            <p className="text-[11px] text-slate-400">
+              Contrast is sampled per screen region. Ratios below 4.5:1 fail WCAG AA for normal text — a legal accessibility requirement in many jurisdictions.
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -25,8 +25,19 @@ export interface Issue {
   bbox?: BBox
 }
 
+export interface A11yIssue {
+  type: 'accessibility'
+  component: string
+  issue: string
+  severity: 'high' | 'medium'
+  contrast_ratio: number
+  wcag_standard: string
+  bbox?: { x: number; y: number; w: number; h: number }
+}
+
 export interface BreakpointResult {
   issues: Issue[]
+  a11y_issues: A11yIssue[]
   mismatch_pct: number
   ui_image: string
   annotated_image: string

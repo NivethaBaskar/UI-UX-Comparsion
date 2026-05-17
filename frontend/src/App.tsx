@@ -24,6 +24,8 @@ export default function App() {
   const [results, setResults] = useState<CompareResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string>('')
+  const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null)
+  const analysisStartRef = useRef<number>(0)
   const resultsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -45,7 +47,9 @@ export default function App() {
     setLogs([])
     setResults(null)
     setError(null)
+    setElapsedSeconds(null)
     setActiveTab('logs')
+    analysisStartRef.current = Date.now()
 
     try {
       // Step 1: upload figma image
@@ -102,6 +106,7 @@ export default function App() {
             } else if (eventType === 'result') {
               const res = data as CompareResult
               setResults(res)
+              setElapsedSeconds(Math.round((Date.now() - analysisStartRef.current) / 1000))
               const firstBp = Object.keys(res.breakpoints)[0]
               if (firstBp) setActiveTab(firstBp)
             } else if (eventType === 'error') {
@@ -196,6 +201,7 @@ export default function App() {
               onTabChange={setActiveTab}
               jiraConfig={jiraConfig}
               url={url}
+              elapsedSeconds={elapsedSeconds}
             />
             </div>
           )}

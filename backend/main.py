@@ -101,6 +101,19 @@ async def compare(req: CompareRequest):
                 return
             await asyncio.sleep(0)
 
+            # --- Accessibility contrast check ---
+            a11y_issues: list = []
+            try:
+                from services.accessibility import check_accessibility
+                a11y_issues = await loop.run_in_executor(None, check_accessibility, ui_path)
+                yield log_sse(
+                    f"[{bp_label}] Accessibility check: {len(a11y_issues)} contrast issue(s) found",
+                    "success" if not a11y_issues else "info",
+                )
+            except Exception as e:
+                yield log_sse(f"[{bp_label}] Accessibility check skipped: {e}", "info")
+            await asyncio.sleep(0)
+
             # --- Pixel diff ---
             yield log_sse(f"[{bp_label}] Generating pixel diff...", "info")
             mismatch_pct = 0.0
@@ -188,6 +201,7 @@ async def compare(req: CompareRequest):
 
             results[bp_label] = {
                 "issues":           final_issues,
+                "a11y_issues":      a11y_issues,
                 "mismatch_pct":     round(mismatch_pct, 2),
                 "ui_image":         f"/api/images/ui_{suffix}.png",
                 "annotated_image":  f"/api/images/annotated_{suffix}.png",
