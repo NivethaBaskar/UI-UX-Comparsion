@@ -26,24 +26,117 @@ Two interfaces — use whichever fits your workflow:
 
 The React UI includes a **drag-to-compare slider** (Figma ↔ annotated live UI) and a classic side-by-side view — toggle between them per breakpoint.
 
-## Setup
+## Installation & Setup
+
+### Prerequisites
+
+| Tool | Version | Download |
+|------|---------|----------|
+| Python | 3.10 + | https://python.org |
+| Node.js | 18 + | https://nodejs.org |
+| Git | any | https://git-scm.com |
+| OpenAI API Key | — | https://platform.openai.com |
+
+---
+
+### 1 — Clone the repository
 
 ```bash
-# 1. Python environment
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Mac/Linux
-
-# 2. Dependencies
-pip install -r requirements.txt
-python -m playwright install chromium
-
-# 3. Run Streamlit
-streamlit run app.py
-
-# 4. Or run React UI (separate terminal)
-cd frontend && npm install && npm run dev
+git clone https://github.com/NivethaBaskar/UI-UX-Comparsion.git
+cd UI-UX-Comparsion/ui-ux-comparator
 ```
+
+---
+
+### 2 — Python environment
+
+```bash
+# Create and activate virtual environment
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Mac / Linux
+source venv/bin/activate
+```
+
+---
+
+### 3 — Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### 4 — Install Playwright browser
+
+```bash
+python -m playwright install chromium
+```
+
+> Playwright drives a headless Chromium browser to capture live screenshots.
+
+---
+
+### 5 — Run the app
+
+**Option A — Streamlit (quickest, no backend needed)**
+
+```bash
+streamlit run app.py
+```
+
+Open [http://localhost:8501](http://localhost:8501) in your browser.  
+Enter your OpenAI API Key in the sidebar and you're ready.
+
+---
+
+**Option B — React UI + FastAPI backend (full interface)**
+
+Terminal 1 — start the FastAPI backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+Terminal 2 — start the React frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+### 6 — (Optional) Jira integration
+
+In the sidebar / config panel, fill in:
+
+| Field | Where to find it |
+|-------|-----------------|
+| Jira Domain | `your-org.atlassian.net` |
+| Email | Your Atlassian account email |
+| API Token | https://id.atlassian.com/manage-profile/security/api-tokens |
+| Project Key | The short key shown in your Jira project (e.g. `KAN`) |
+
+---
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `playwright install` fails | Run `python -m playwright install-deps` first (Linux only) |
+| `ModuleNotFoundError` | Make sure your venv is activated before running pip install |
+| Screenshot is blank | The target URL may block headless browsers — try a different site |
+| Streamlit port in use | Run `streamlit run app.py --server.port 8502` |
+| React dev server CORS error | Ensure the FastAPI backend is running on port 8000 |
 
 ## Configuration
 
