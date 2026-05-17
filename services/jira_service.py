@@ -138,8 +138,27 @@ class JiraClient:
             try:
                 ticket = self.create_ticket(issue, url, timestamp)
                 key = ticket.get("key", "")
-                for path in [figma_path, ui_path, diff_path]:
-                    self.attach_file(key, path)
+
+                # Attach cropped + highlighted region for this specific issue.
+                # Fall back to the full UI screenshot if crop fails or no bbox.
+                crop_path = None
+                try:
+                    from services.annotate import crop_issue_region
+                    crop_path = crop_issue_region(ui_path, issue)
+                except Exception:
+                    pass
+
+                if crop_path:
+                    try:
+                        self.attach_file(key, crop_path)
+                    finally:
+                        try:
+                            os.unlink(crop_path)
+                        except OSError:
+                            pass
+                else:
+                    self.attach_file(key, ui_path)
+
                 results.append({
                     "issue": issue,
                     "status": "created",

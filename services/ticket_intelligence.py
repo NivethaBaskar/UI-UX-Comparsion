@@ -77,6 +77,11 @@ Every object must include: type, component, issue, severity, root_cause, suggest
             content = parts[1][4:] if parts[1].startswith("json") else parts[1]
 
         enriched = json.loads(content)
+        # Re-attach bbox from original issues by matching component name (LLM may drop it)
+        bbox_map = {i.get("component", ""): i.get("bbox") for i in issues if i.get("bbox")}
+        for item in enriched:
+            if not item.get("bbox"):
+                item["bbox"] = bbox_map.get(item.get("component", ""))
         return sorted(enriched, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "low").lower(), 3))
 
     except Exception:

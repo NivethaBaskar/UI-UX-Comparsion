@@ -3,14 +3,19 @@ import sys
 import asyncio
 from playwright.sync_api import sync_playwright
 
-def capture_screenshot(url: str, output_path: str = "ui.png") -> str:
-    """Captures a full page screenshot of the given URL."""
+def capture_screenshot(
+    url: str,
+    output_path: str = "ui.png",
+    viewport_width: int = 1280,
+    viewport_height: int = 900,
+) -> str:
+    """Captures a full-page screenshot at the specified viewport size."""
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": viewport_width, "height": viewport_height})
         try:
             page.goto(url, wait_until="networkidle", timeout=30000)
             page.screenshot(path=output_path, full_page=True)
