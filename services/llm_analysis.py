@@ -36,7 +36,7 @@ Output your analysis as a structured JSON array. Each object must have:
 - "type": (e.g., "alignment", "spacing", "color", "font", "missing")
 - "component": The UI element affected (e.g., "navbar", "hero text", "primary button")
 - "issue": A brief description of the issue.
-- "severity": "high", "medium", or "low"
+- "severity": "critical" (completely missing component or totally wrong layout), "high", "medium", or "low"
 - "bbox": Approximate bounding box of the affected area in the LIVE UI screenshot as fractional coordinates: {"x": 0.0-1.0, "y": 0.0-1.0, "w": 0.0-1.0, "h": 0.0-1.0} where (0,0) is the top-left corner and values are fractions of the image width/height. Estimate as accurately as possible.
 
 Only return valid JSON array. Do not include markdown blocks or any other text.'''
@@ -64,7 +64,7 @@ Only return valid JSON array. Do not include markdown blocks or any other text.'
                     ],
                 }
             ],
-            max_tokens=1000,
+            max_tokens=3000,
         )
 
         response_content = response.choices[0].message.content.strip()

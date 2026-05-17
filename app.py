@@ -11,6 +11,7 @@ from services.jira_service import JiraClient
 from services.llm_analysis import analyze_differences
 from services.screenshot import capture_screenshot
 from services.ticket_intelligence import enrich_issues
+from utils.image_utils import annotate_screenshot
 
 try:
     from services.autogen_pipeline import AutoGenPipeline
@@ -142,20 +143,29 @@ if st.button("Compare UI", type="primary", use_container_width=True):
                     for issue in enriched:
                         issue["breakpoint"] = bp_label
 
+                annotated_path = f"annotated_{width}.png"
+                try:
+                    valid_for_annotation = [i for i in enriched if i.get("type") != "error"]
+                    annotate_screenshot(ui_path, valid_for_annotation, annotated_path)
+                except Exception:
+                    annotated_path = ui_path
+
                 bp_results[bp_label] = {
-                    "mismatch_pct":    mismatch_pct,
-                    "enriched":        enriched,
-                    "ui_path":         ui_path,
-                    "diff_path":       diff_path,
+                    "mismatch_pct":     mismatch_pct,
+                    "enriched":         enriched,
+                    "ui_path":          ui_path,
+                    "annotated_path":   annotated_path,
+                    "diff_path":        diff_path,
                     "conversation_log": conversation_log,
                 }
             except Exception as e:
                 bp_results[bp_label] = {
-                    "error":        str(e),
-                    "mismatch_pct": None,
-                    "enriched":     [],
-                    "ui_path":      None,
-                    "diff_path":    None,
+                    "error":          str(e),
+                    "mismatch_pct":   None,
+                    "enriched":       [],
+                    "ui_path":        None,
+                    "annotated_path": None,
+                    "diff_path":      None,
                 }
 
         progress.progress(1.0, text="Done!")
@@ -211,11 +221,12 @@ if st.session_state.comparison_done and st.session_state.breakpoint_results:
 
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.image(figma_path,          caption="Figma Design",          use_container_width=True)
+                st.image(figma_path,                      caption="Figma Design",                    use_container_width=True)
             with c2:
-                st.image(result["ui_path"],   caption=f"Live UI ({bp_label})", use_container_width=True)
+                annotated = result.get("annotated_path") or result["ui_path"]
+                st.image(annotated,                       caption=f"Live UI — annotated ({bp_label})", use_container_width=True)
             with c3:
-                st.image(result["diff_path"], caption="Visual Diff",           use_container_width=True)
+                st.image(result["diff_path"],             caption="Visual Diff",                     use_container_width=True)
 
             enriched     = result["enriched"]
             error_issues = [i for i in enriched if i.get("type") == "error"]
