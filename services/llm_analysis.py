@@ -32,18 +32,20 @@ Detect visual bugs and discrepancies between the design and the live UI. Look fo
 - color differences
 - missing components
 
-Output your analysis as a structured JSON array. Each object must have:
-- "type": (e.g., "alignment", "spacing", "color", "font", "missing")
+Return a JSON object with a single key "issues" containing an array of findings. Each object in the array must have:
+- "type": one of "alignment", "spacing", "color", "font", "missing"
 - "component": The UI element affected (e.g., "navbar", "hero text", "primary button")
-- "issue": A brief description of the issue.
+- "issue": A brief description of the discrepancy.
 - "severity": "critical" (completely missing component or totally wrong layout), "high", "medium", or "low"
-- "bbox": Approximate bounding box of the affected area in the LIVE UI screenshot as fractional coordinates: {"x": 0.0-1.0, "y": 0.0-1.0, "w": 0.0-1.0, "h": 0.0-1.0} where (0,0) is the top-left corner and values are fractions of the image width/height. Estimate as accurately as possible.
+- "bbox": Bounding box of the affected area in the LIVE UI screenshot as fractional coordinates:
+  {"x": 0.0-1.0, "y": 0.0-1.0, "w": 0.0-1.0, "h": 0.0-1.0}
+  where (0,0) is top-left and values are fractions of image width/height.
 
-Only return valid JSON array. Do not include markdown blocks or any other text.'''
+Only report issues clearly visible in the diff image. Do not invent issues not supported by the diff.'''
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1",
             messages=[
                 {
                     "role": "user",
@@ -65,14 +67,11 @@ Only return valid JSON array. Do not include markdown blocks or any other text.'
                 }
             ],
             max_tokens=3000,
+            temperature=0,
+            response_format={"type": "json_object"},
         )
 
-        response_content = response.choices[0].message.content.strip()
-        if response_content.startswith("```json"):
-            response_content = response_content[7:-3]
-        elif response_content.startswith("```"):
-            response_content = response_content[3:-3]
-            
-        return json.loads(response_content)
+        result = json.loads(response.choices[0].message.content)
+        return result.get("issues", [])
     except Exception as e:
         return [{"type": "error", "component": "system", "issue": f"LLM analysis failed: {str(e)}", "severity": "high"}]
